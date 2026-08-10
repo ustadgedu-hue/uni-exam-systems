@@ -12,9 +12,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+
+const connectDB = require('./config/db');
+const { describeDbError } = require('./config/dbStatus');
 
 // ───────────────────────────────────────────────────────────────────────────
 // CONFIG GUARD — galat config ke saath chupke se chalne se behtar hai
@@ -79,27 +83,85 @@ const loginLimiter = rateLimit({
 });
 app.use('/api/auth/login', loginLimiter);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// YAHAN TAK KISI ROUTE KO DATABASE KI ZAROORAT NAHI
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Health check aur CORS preflight ko database se pehle rakhna zaroori hai.
+// Warna jab database band ho to /api/health bhi mar jata hai — aur wo to
+// banaya hi isliye gaya tha ke bataye database ka haal kya hai.
 // ───────────────────────────────────────────────────────────────────────────
-// API Routes
-// ───────────────────────────────────────────────────────────────────────────
-app.use('/api/auth',       require('./routes/authRoutes'));
-app.use('/api/admin',      require('./routes/adminRoutes'));
-app.use('/api/instructor', require('./routes/instructorRoutes'));
-app.use('/api/student',    require('./routes/studentRoutes'));
-app.use('/api/exam',       require('./routes/examRoutes'));
-app.use('/api/resources',  require('./routes/resourceRoutes'));
 
-// Health check — deploy ke baad sab se pehle yahi test karein
-app.get('/api/health', (req, res) => {
+// Root route — API ka koi homepage nahi hota, lekin "Cannot GET /" dekh kar
+// lagta hai deployment kharab hai. Isliye ek saaf JSON jawab.
+app.get('/', (req, res) => {
   res.json({
-    status: 'API is running ✅',
-    environment: process.env.NODE_ENV || 'development',
-    time: new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' })
+    service: 'Online Examination System API',
+    documentation: 'See DEPLOYMENT.md',
+    health: '/api/health',
+    note: 'This is the backend API. The web app is deployed separately.'
   });
 });
 
-// Koi bhi unknown /api route — HTML ki jagah JSON 404 do
-app.use('/api', (req, res) => {
+// Health check — deploy ke baad sab se pehle yahi test karein.
+// Ye database ke BAGAIR bhi jawab deta hai, aur batata hai ke masla kahan hai.
+app.get('/api/health', async (req, res) => {
+  const base = {
+    api: 'ok',
+    environment: process.env.NODE_ENV || 'development',
+    time: new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' })
+  };
+
+  try {
+    await connectDB();
+    res.json({
+      status: 'API is running ✅',
+      database: 'connected',
+      databaseName: mongoose.connection.name,
+      ...base
+    });
+  } catch (err) {
+    const { reason, code, detail } = describeDbError(err);
+    console.error('❌ Health check: database unreachable —', err.message);
+    res.status(503).json({
+      status: 'degraded',
+      database: 'unreachable',
+      reason,
+      code,
+      ...(detail ? { detail } : {}),
+      ...base
+    });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ensureDb — sirf un routes par jinhein waqai database chahiye
+// ───────────────────────────────────────────────────────────────────────────
+// connectDB cached hai — warm lambda mein ye foran wapas aa jata hai.
+// Ise har route par lagane ke bajaye sirf API routers par lagate hain, taake
+// 404 aur health jaise jawab database ke haal se aazad rahein.
+const ensureDb = async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);   // neeche error handler isay 503 + wajah bana dega
+  }
+};
+
+// ───────────────────────────────────────────────────────────────────────────
+// API Routes (sab ko database chahiye)
+// ───────────────────────────────────────────────────────────────────────────
+app.use('/api/auth',       ensureDb, require('./routes/authRoutes'));
+app.use('/api/admin',      ensureDb, require('./routes/adminRoutes'));
+app.use('/api/instructor', ensureDb, require('./routes/instructorRoutes'));
+app.use('/api/student',    ensureDb, require('./routes/studentRoutes'));
+app.use('/api/exam',       ensureDb, require('./routes/examRoutes'));
+app.use('/api/resources',  ensureDb, require('./routes/resourceRoutes'));
+
+// Koi bhi unknown route — HTML ki jagah JSON 404 do.
+// Ye database ke bagair bhi kaam karta hai.
+app.use((req, res) => {
   res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` });
 });
 
@@ -114,9 +176,21 @@ app.use((err, req, res, next) => {
     return res.status(403).json({ message: 'CORS: this origin is not allowed to call the API' });
   }
 
-  // Database down / reachable nahi → 503, kyunki ye client ki ghalti nahi
-  if (err.name === 'MongooseServerSelectionError' || err.name === 'MongoNetworkError') {
-    return res.status(503).json({ message: 'Database unavailable. Please try again shortly.' });
+  // Database down / reachable nahi → 503, kyunki ye client ki ghalti nahi.
+  // Sath mein wajah bhi bhejte hain taake deploy ke waqt pata chale masla kya
+  // hai — /api/health ki tarah.
+  if (
+    err.name === 'MongooseServerSelectionError' ||
+    err.name === 'MongoNetworkError' ||
+    err.name === 'MongoParseError' ||
+    (err.message && err.message.includes('MONGO_URI is not set'))
+  ) {
+    const { reason, code } = describeDbError(err);
+    return res.status(503).json({
+      message: 'Database unavailable. Please try again shortly.',
+      reason,
+      code
+    });
   }
 
   const isProduction = process.env.NODE_ENV === 'production';

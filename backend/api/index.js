@@ -7,20 +7,11 @@
 // hai ke kaunsa route chalana hai.
 //
 // Yahan app.listen() NAHI hai — Vercel khud request handle karta hai.
+//
+// Database ka connection app.js ke andar middleware mein hota hai, yahan
+// nahi. Wajah: agar hum yahan sab kuch rok dein to database band hone ki
+// soorat mein /api/health aur CORS preflight bhi mar jate hain — aur phir
+// browser mein "CORS error" aata hai jabke asal masla database ka hota hai.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const app = require('../app');
-const connectDB = require('../config/db');
-
-module.exports = async (req, res) => {
-  try {
-    // Har request se pehle connection ready karo. connectDB cached hai,
-    // isliye warm lambda mein ye foran wapas aa jata hai.
-    await connectDB();
-  } catch (err) {
-    console.error('❌ MongoDB connection failed:', err.message);
-    return res.status(503).json({ message: 'Database unavailable. Please try again shortly.' });
-  }
-
-  return app(req, res);
-};
+module.exports = require('../app');

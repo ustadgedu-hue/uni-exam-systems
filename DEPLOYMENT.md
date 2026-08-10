@@ -239,8 +239,13 @@ git push -u origin main
    You should see:
 
    ```json
-   { "status": "API is running ✅", "environment": "production", "time": "..." }
+   { "status": "API is running ✅", "database": "connected",
+     "databaseName": "exam_system", "api": "ok", "environment": "production", "time": "..." }
    ```
+
+   If instead you get `"database": "unreachable"`, the `reason` field names the exact problem —
+   see [Troubleshooting](#503-database-unavailable--start-here). The most likely one is Atlas
+   Network Access.
 
    **Copy your backend URL.** You need it in the next step.
 
@@ -326,10 +331,47 @@ The exact message tells you which side is wrong:
 - **`CORS: this origin is not allowed to call the API`** (a JSON 403) → the backend is running
   and correctly rejecting you. Same fix.
 
-### Login spins forever / 503 "Database unavailable"
+### 503 "Database unavailable" — **start here**
 
-Almost always Atlas Network Access. Confirm `0.0.0.0/0` is listed and **Active** (it can take a
-minute to apply). Otherwise check `MONGO_URI` — especially special characters in the password.
+`/api/health` tells you the cause directly. Open it and read the `reason` field:
+
+```bash
+curl https://<your-backend>.vercel.app/api/health
+```
+
+| `code` | What to do |
+|---|---|
+| `UNREACHABLE` | Atlas → **Network Access** → add `0.0.0.0/0`, wait for **Active**. |
+| `NOT_CONFIGURED` | `MONGO_URI` is missing from the Vercel project. Add it and redeploy. |
+| `BAD_CREDENTIALS` | Wrong username/password in `MONGO_URI`. Watch for unencoded `@ / : #`. |
+| `BAD_URI` | The connection string is malformed — re-copy it from Atlas. |
+
+**The response time is also a tell:** a failure after **~10 seconds** is a connection timeout
+(Network Access), while an **instant** failure means the variable is missing or malformed.
+
+### Everything works locally but not on Vercel
+
+Your own IP is allowlisted in Atlas; Vercel's is not. This is the single most common cause and
+it produces exactly the symptom above. Fix: Network Access → `0.0.0.0/0`.
+
+### Data is in a database called `test`
+
+If `MONGO_URI` has no database name — it ends `.mongodb.net/?retryWrites=...` — MongoDB silently
+uses a database literally named `test`. Insert the name **before the `?`**:
+
+```
+...mongodb.net/exam_system?retryWrites=true&w=majority
+               ^^^^^^^^^^^
+```
+
+Check which one you're actually on: `/api/health` reports it as `databaseName`. After fixing the
+URI, re-run `npm run seed` so the demo data lands in the new database.
+
+### `GET /` on the backend returns a JSON blurb, not the app
+
+That's correct — the backend is an API and has no homepage. Your **frontend** is the separate
+Vercel project. (If you see the plain text `Cannot GET /`, you're on a deploy from before this
+was added.)
 
 ### Backend deploy succeeds but every route 404s
 

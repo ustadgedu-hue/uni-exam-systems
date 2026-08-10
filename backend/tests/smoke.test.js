@@ -33,6 +33,7 @@ const request = require('supertest');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
 const app = require('../app');
+const connectDB = require('../config/db');
 const User = require('../models/User');
 const Course = require('../models/Course');
 const { cloudinary, DELIVERY_TYPE } = require('../config/cloudinary');
@@ -47,7 +48,12 @@ const INSTRUCTOR = { email: 'instructor@test.edu', password: 'instructor12345' }
 
 test.before(async () => {
   mongod = await MongoMemoryServer.create();
-  await mongoose.connect(mongod.getUri());
+
+  // MONGO_URI set kar ke connectDB() istemal karo (seedha mongoose.connect
+  // nahi) — is tarah tests wahi raasta chalte hain jo production chalta hai,
+  // including ensureDb middleware.
+  process.env.MONGO_URI = mongod.getUri() + 'exam_system_test';
+  await connectDB();
 
   await User.create({
     name: 'Test Student', email: STUDENT.email, password: STUDENT.password,
@@ -76,17 +82,52 @@ test.after(async () => {
   if (mongod) await mongod.stop();
 });
 
-// ─── Health ────────────────────────────────────────────────────────────────
-test('GET /api/health returns 200', async () => {
+// ─── Health & routing ──────────────────────────────────────────────────────
+test('GET /api/health returns 200 and reports the database as connected', async () => {
   const res = await request(app).get('/api/health');
   assert.strictEqual(res.status, 200);
   assert.match(res.body.status, /running/);
+  assert.strictEqual(res.body.api, 'ok');
+  assert.strictEqual(res.body.database, 'connected');
+});
+
+test('GET / returns a JSON index, not "Cannot GET /"', async () => {
+  const res = await request(app).get('/');
+  assert.strictEqual(res.status, 200);
+  assert.match(res.headers['content-type'], /application\/json/);
+  assert.strictEqual(res.body.health, '/api/health');
 });
 
 test('unknown /api route returns JSON 404, not HTML', async () => {
   const res = await request(app).get('/api/does-not-exist');
   assert.strictEqual(res.status, 404);
   assert.ok(res.body.message.includes('Route not found'));
+});
+
+test('unknown NON-api route also returns JSON 404', async () => {
+  const res = await request(app).get('/random/path');
+  assert.strictEqual(res.status, 404);
+  assert.match(res.headers['content-type'], /application\/json/);
+});
+
+// Ye wo regression hai jis ne live deployment par ghalat-fehmi paida ki thi:
+// database band hone par CORS preflight bhi 503 de raha tha, jis se browser
+// mein "CORS error" aata tha jabke asal masla database ka tha.
+test('CORS preflight succeeds without touching the database', async () => {
+  const res = await request(app)
+    .options('/api/auth/login')
+    .set('Origin', 'http://localhost:3000')
+    .set('Access-Control-Request-Method', 'POST');
+
+  assert.ok(res.status < 400, `preflight must not fail, got ${res.status}`);
+  assert.strictEqual(res.headers['access-control-allow-origin'], 'http://localhost:3000');
+});
+
+test('CORS rejects an origin that is not in the allow-list', async () => {
+  const res = await request(app)
+    .get('/api/health')
+    .set('Origin', 'https://evil.example.com');
+  assert.strictEqual(res.headers['access-control-allow-origin'], undefined);
 });
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
