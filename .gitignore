@@ -1,0 +1,32 @@
+# ─── Dependencies ──────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Secrets — NEVER commit these ──────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Build output ──────────────────────────────────────────────────────────
+build/
+dist/
+coverage/
+
+# ─── Legacy local uploads (files now live in Cloudinary) ───────────────────
+backend/uploads/
+
+# ─── Vercel ────────────────────────────────────────────────────────────────
+.vercel
+
+# ─── Logs ──────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Editors / OS ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
