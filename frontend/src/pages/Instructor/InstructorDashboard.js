@@ -6,6 +6,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, T
 import API from '../../utils/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
+import { toPakistanISO, formatDateTime, formatDate } from '../../utils/datetime';
 import { PaperView } from '../Admin/AdminDashboard';
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
@@ -35,7 +36,7 @@ function Overview() {
               const status = ended?'Ended':started?'Active':'Upcoming';
               return (<tr key={e._id}>
                 <td><strong>{e.title}</strong></td><td>{e.course?.courseCode}</td>
-                <td>{new Date(e.startTime).toLocaleString()}</td><td>{new Date(e.endTime).toLocaleString()}</td>
+                <td>{formatDateTime(e.startTime)}</td><td>{formatDateTime(e.endTime)}</td>
                 <td>{e.duration} min</td>
                 <td><span className={`badge ${ended?'badge-gray':started?'badge-success':'badge-warning'}`}>{status}</span></td>
                 <td style={{ display:'flex', gap:6 }}>
@@ -69,7 +70,15 @@ function CreateExam() {
     if (!questions.length) return toast.error('Add at least one question');
     if (!form.courseId) return toast.error('Select a course');
     setSaving(true);
-    try { await API.post('/instructor/exams', { ...form, questions }); toast.success('Exam created!'); navigate('/instructor'); }
+    // Waqt ko Pakistan ke hisaab se pakka kar ke bhejo. Bagair iske server
+    // (jo Vercel par UTC mein chalta hai) 2:30 pm ko 7:30 pm samajh leta hai.
+    const payload = {
+      ...form,
+      startTime: toPakistanISO(form.startTime),
+      endTime: toPakistanISO(form.endTime),
+      questions
+    };
+    try { await API.post('/instructor/exams', payload); toast.success('Exam created!'); navigate('/instructor'); }
     catch (err) { toast.error(err.response?.data?.message||'Error'); }
     finally { setSaving(false); }
   };
@@ -234,7 +243,7 @@ function ExamResults() {
                 <td>{a.totalMarksObtained}/{a.totalMarks}</td><td>{a.percentage}%</td>
                 <td><span className={`badge ${a.percentage>=50?'badge-success':'badge-danger'}`}>{a.grade||'—'}</span></td>
                 <td>{a.totalCheatingFlags>0?<span className="badge badge-danger">⚠️{a.totalCheatingFlags}</span>:'—'}</td>
-                <td>{a.submittedAt?new Date(a.submittedAt).toLocaleString():'—'}</td>
+                <td>{formatDateTime(a.submittedAt)}</td>
                 <td><span className={`badge ${a.status==='graded'?'badge-success':'badge-warning'}`}>{a.status}</span></td>
                 <td>
                   {a.status === 'submitted' ? (
@@ -258,7 +267,7 @@ function ExamResults() {
               <button className="modal-close" onClick={()=>setGrading(null)}>×</button>
             </div>
             <div style={{ fontSize:13, color:'#6b7280', marginBottom:16 }}>
-              Student ID: {grading.student?.studentId} | Submitted: {new Date(grading.submittedAt).toLocaleString()}
+              Student ID: {grading.student?.studentId} | Submitted: {formatDateTime(grading.submittedAt)}
             </div>
 
             {grading.answers?.filter(a => a.questionType === 'short_answer').length === 0 ? (
@@ -386,7 +395,7 @@ function SearchStudentPaper() {
                 <label className="form-label">Select Exam:</label>
                 <select className="form-control" onChange={e=>setSelectedAttempt(result.attempts.find(a=>a._id===e.target.value))}>
                   {result.attempts.map(a=>(
-                    <option key={a._id} value={a._id}>{a.exam?.title} — {a.exam?.course?.courseCode} — {new Date(a.submittedAt).toLocaleDateString()} — {a.percentage}%</option>
+                    <option key={a._id} value={a._id}>{a.exam?.title} — {a.exam?.course?.courseCode} — {formatDate(a.submittedAt)} — {a.percentage}%</option>
                   ))}
                 </select>
               </div>

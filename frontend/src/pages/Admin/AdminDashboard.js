@@ -4,6 +4,7 @@ import Sidebar from '../../components/Common/Sidebar';
 import API from '../../utils/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateTime, formatDate } from '../../utils/datetime';
 
 // ── OVERVIEW (Clean Database button removed) ────────────────────────────────
 function Overview() {
@@ -80,7 +81,7 @@ function Overview() {
                       ) : '—'}
                     </td>
                     <td style={{ fontSize: 12, color: '#6b7280' }}>
-                      {new Date(a.submittedAt).toLocaleDateString()}
+                      {formatDate(a.submittedAt)}
                     </td>
                   </tr>
                 ))}
@@ -468,7 +469,7 @@ function CheatingReports() {
                 <td>{r.student?.name}</td><td>{r.student?.studentId}</td><td>{r.student?.program||'—'}</td>
                 <td>{r.exam?.title}</td><td>{r.exam?.course?.courseCode}</td>
                 <td><span className="badge badge-danger">⚠️ {r.totalCheatingFlags}</span></td>
-                <td>{r.submittedAt?new Date(r.submittedAt).toLocaleDateString():'—'}</td>
+                <td>{formatDate(r.submittedAt)}</td>
                 <td><button className="btn btn-sm btn-outline" onClick={()=>setSelected(r)}>View</button></td>
               </tr>
             ))}</tbody>
@@ -484,7 +485,7 @@ function CheatingReports() {
               <div key={i} style={{ padding:'10px 14px', background:'#fef2f2', borderRadius:8, border:'1px solid #fecaca', fontSize:13, marginBottom:8 }}>
                 <strong style={{ color:'#dc2626' }}>#{i+1} {f.type.replace(/_/g,' ').toUpperCase()}</strong>
                 <div style={{ color:'#374151', marginTop:3 }}>{f.detail}</div>
-                <div style={{ color:'#9ca3af', fontSize:11, marginTop:2 }}>{new Date(f.timestamp).toLocaleString()}</div>
+                <div style={{ color:'#9ca3af', fontSize:11, marginTop:2 }}>{formatDateTime(f.timestamp)}</div>
               </div>
             ))}
           </div>
@@ -541,7 +542,7 @@ function ViewStudentPaper() {
                 <select className="form-control" onChange={e=>setSelectedAttempt(result.attempts.find(a=>a._id===e.target.value))}>
                   {result.attempts.map(a=>(
                     <option key={a._id} value={a._id}>
-                      {a.exam?.title} — {a.exam?.course?.courseCode} — {new Date(a.submittedAt).toLocaleDateString()} — {a.percentage}% ({a.grade})
+                      {a.exam?.title} — {a.exam?.course?.courseCode} — {formatDate(a.submittedAt)} — {a.percentage}% ({a.grade})
                     </option>
                   ))}
                 </select>
@@ -567,7 +568,7 @@ export function PaperView({ attempt, showHighlights, role }) {
           <div>
             <div style={{ fontWeight:700, fontSize:18 }}>{attempt.exam?.title}</div>
             <div style={{ fontSize:13, color:'#6b7280' }}>{attempt.exam?.course?.courseCode} — {attempt.exam?.course?.courseName}</div>
-            <div style={{ fontSize:13, color:'#6b7280', marginTop:4 }}>Submitted: {attempt.submittedAt ? new Date(attempt.submittedAt).toLocaleString() : '—'} {autoSubmitted && <span className="badge badge-warning" style={{ marginLeft:6 }}>Auto-submitted</span>}</div>
+            <div style={{ fontSize:13, color:'#6b7280', marginTop:4 }}>Submitted: {formatDateTime(attempt.submittedAt)} {autoSubmitted && <span className="badge badge-warning" style={{ marginLeft:6 }}>Auto-submitted</span>}</div>
           </div>
           <div style={{ display:'flex', gap:24, textAlign:'center' }}>
             <div><div style={{ fontSize:32, fontWeight:800 }}>{grade||'—'}</div><div style={{ fontSize:12, color:'#6b7280' }}>Grade</div></div>
@@ -582,7 +583,7 @@ export function PaperView({ attempt, showHighlights, role }) {
           <div style={{ fontWeight:700, color:'#dc2626', marginBottom:10 }}>🚨 Cheating Flags: {totalCheatingFlags}</div>
           {cheatingFlags?.map((f,i)=>(
             <div key={i} style={{ fontSize:13, padding:'6px 0', borderBottom:'1px solid #fecaca' }}>
-              <strong>#{i+1}</strong> {f.type.replace(/_/g,' ')} — {f.detail} <span style={{ color:'#9ca3af', fontSize:11 }}>({new Date(f.timestamp).toLocaleString()})</span>
+              <strong>#{i+1}</strong> {f.type.replace(/_/g,' ')} — {f.detail} <span style={{ color:'#9ca3af', fontSize:11 }}>({formatDateTime(f.timestamp)})</span>
             </div>
           ))}
         </div>

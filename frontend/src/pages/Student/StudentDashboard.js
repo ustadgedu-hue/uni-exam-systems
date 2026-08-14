@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/Common/Sidebar';
 import API from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateTime, formatDate, formatTime } from '../../utils/datetime';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -74,8 +75,8 @@ export default function StudentDashboard() {
                         <div style={{ fontSize:13, color:'#6b7280', marginBottom:12 }}>{e.course?.courseCode} — {e.course?.courseName}</div>
                         <div style={{ fontSize:13, display:'flex', flexDirection:'column', gap:4, marginBottom:14 }}>
                           <span>⏱ Duration: {e.duration} min</span>
-                          <span>🕐 Start: {new Date(e.startTime).toLocaleString()}</span>
-                          <span>🕑 End: {new Date(e.endTime).toLocaleString()}</span>
+                          <span>🕐 Start: {formatDateTime(e.startTime)}</span>
+                          <span>🕑 End: {formatDateTime(e.endTime)}</span>
                           {!e.canStart && (
                             <span style={{ color:'#f59e0b', fontWeight:500 }}>⏳ {getTimeUntilStart(e.startTime)}</span>
                           )}
@@ -90,7 +91,7 @@ export default function StudentDashboard() {
                             : e.canStart
                               ? <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center' }} onClick={()=>navigate(`/student/exam/${e._id}`)}>▶️ Start Exam</button>
                               : <div style={{ padding:'8px 12px', background:'#fef3c7', borderRadius:8, fontSize:13, color:'#92400e', textAlign:'center' }}>
-                                  ⏳ Starting soon — {new Date(e.startTime).toLocaleTimeString()}
+                                  ⏳ Starting soon — {formatTime(e.startTime)}
                                 </div>
                         }
                       </div>
@@ -110,7 +111,7 @@ export default function StudentDashboard() {
                           <td>{r.totalMarksObtained}/{r.totalMarks}</td>
                           <td>{r.percentage}%</td>
                           <td><span className={`badge ${r.percentage>=50?'badge-success':'badge-danger'}`}>{r.grade}</span></td>
-                          <td>{new Date(r.submittedAt).toLocaleDateString()}</td>
+                          <td>{formatDate(r.submittedAt)}</td>
                           <td>{r.status==='graded'
                             ? <button className="btn btn-sm btn-outline" onClick={()=>navigate(`/student/results/${r._id}`)}>View Paper</button>
                             : <span className="badge badge-warning">Pending Grading</span>
